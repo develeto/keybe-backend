@@ -1,10 +1,12 @@
 import { UserLookupPort } from '@/shared/domain/ports/user-lookup.port';
-import { getDatabaseInstance } from '@/shared/infrastructure/db/kysely-client';
+import { Kysely } from 'kysely';
+import type { OrderFlowDatabase } from '@/shared/infrastructure/db/models';
 
 export class UserLookupAdapter implements UserLookupPort {
+  constructor(private readonly db: Kysely<OrderFlowDatabase>) {}
+
   async findByCognitoSub(cognitoSub: string): Promise<number | null> {
-    const db = await getDatabaseInstance();
-    const result = await db
+    const result = await this.db
       .selectFrom('users')
       .select('id')
       .where('cognito_sub', '=', cognitoSub)

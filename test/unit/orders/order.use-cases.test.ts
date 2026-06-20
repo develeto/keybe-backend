@@ -144,9 +144,12 @@ describe('GetOrderUseCase', () => {
   });
 });
 
+import { OrderNotificationPort } from '@/shared/domain/ports/order-notification.port';
+
 describe('ProcessOrderUseCase', () => {
   let useCase: ProcessOrderUseCase;
   let mockRepo: jest.Mocked<OrdersRepository>;
+  let mockNotification: jest.Mocked<OrderNotificationPort>;
 
   beforeEach(() => {
     mockRepo = {
@@ -157,7 +160,10 @@ describe('ProcessOrderUseCase', () => {
       updateStatus: jest.fn(),
       findAll: jest.fn(),
     };
-    useCase = new ProcessOrderUseCase(mockRepo);
+    mockNotification = {
+      notifyStatusChanged: jest.fn(),
+    };
+    useCase = new ProcessOrderUseCase(mockRepo, mockNotification);
   });
 
   it('should process order from PENDING to COMPLETED', async () => {
@@ -171,6 +177,18 @@ describe('ProcessOrderUseCase', () => {
 
     expect(mockRepo.updateStatus).toHaveBeenNthCalledWith(1, 1, 'PROCESSING');
     expect(mockRepo.updateStatus).toHaveBeenNthCalledWith(2, 1, 'COMPLETED');
+    expect(mockNotification.notifyStatusChanged).toHaveBeenNthCalledWith(1, {
+      orderId: 1,
+      fromStatus: 'PENDING',
+      toStatus: 'PROCESSING',
+      timestamp: expect.any(String),
+    });
+    expect(mockNotification.notifyStatusChanged).toHaveBeenNthCalledWith(2, {
+      orderId: 1,
+      fromStatus: 'PROCESSING',
+      toStatus: 'COMPLETED',
+      timestamp: expect.any(String),
+    });
     expect(result).toEqual({ id: 1, status: 'COMPLETED', total: 20 });
   });
 

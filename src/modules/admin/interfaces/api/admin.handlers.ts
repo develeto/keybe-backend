@@ -2,12 +2,11 @@ import { ResponseHelper } from '@/shared/utils/http-response.utils';
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { validateInput } from '@/shared/utils/validate-input.utils';
 import { UpdateOrderStatusSchema } from '@/modules/admin/application/dtos/admin.dto';
-import { AdminListOrdersUseCase, AdminUpdateOrderStatusUseCase } from '@/modules/admin/application/uses-cases/admin.use-cases';
-import adminOrdersRepository from '@/modules/admin/config/dependencies';
+import {
+  listOrdersUseCase,
+  updateStatusUseCase,
+} from '@/modules/admin/config/dependencies';
 import { OrderStatus } from '@/shared/domain/value-objects/order-status';
-
-const listOrdersUseCase = new AdminListOrdersUseCase(adminOrdersRepository);
-const updateStatusUseCase = new AdminUpdateOrderStatusUseCase(adminOrdersRepository);
 
 export const adminListOrders = async (
   event: APIGatewayProxyEvent,

@@ -1,16 +1,12 @@
 import { RegisterUseCase } from '@/modules/auth/application/uses-cases/auth.use-cases';
 import { AuthRepository } from '@/modules/auth/domain/repositories/auth.repository.interface';
-import { createUser, setUserPassword } from '@/shared/infrastructure/aws/cognito';
+import { AuthProviderPort } from '@/shared/domain/ports/auth-provider.port';
 import { ConflictError } from '@/shared/utils/error-handler.utils';
-
-jest.mock('@/shared/infrastructure/aws/cognito', () => ({
-  createUser: jest.fn(),
-  setUserPassword: jest.fn(),
-}));
 
 describe('RegisterUseCase', () => {
   let registerUseCase: RegisterUseCase;
   let mockAuthRepository: jest.Mocked<AuthRepository>;
+  let mockAuthProvider: jest.Mocked<AuthProviderPort>;
 
   beforeEach(() => {
     mockAuthRepository = {
@@ -20,14 +16,20 @@ describe('RegisterUseCase', () => {
       updateCognitoSub: jest.fn(),
     };
 
-    registerUseCase = new RegisterUseCase(mockAuthRepository);
+    mockAuthProvider = {
+      login: jest.fn(),
+      createUser: jest.fn(),
+      setUserPassword: jest.fn(),
+    };
+
+    registerUseCase = new RegisterUseCase(mockAuthRepository, mockAuthProvider);
     jest.clearAllMocks();
   });
 
   it('should create user successfully', async () => {
     mockAuthRepository.findByUsername.mockResolvedValue(null);
     mockAuthRepository.findByEmail.mockResolvedValue(null);
-    (createUser as jest.Mock).mockResolvedValue('cognito-sub-123');
+    mockAuthProvider.createUser.mockResolvedValue('cognito-sub-123');
     mockAuthRepository.create.mockResolvedValue(1);
 
     const result = await registerUseCase.execute(
@@ -38,14 +40,14 @@ describe('RegisterUseCase', () => {
 
     expect(mockAuthRepository.findByUsername).toHaveBeenCalledWith('newuser');
     expect(mockAuthRepository.findByEmail).toHaveBeenCalledWith('new@example.com');
-    expect(createUser).toHaveBeenCalledWith('new@example.com', 'newuser', 'Password123!');
+    expect(mockAuthProvider.createUser).toHaveBeenCalledWith('new@example.com', 'newuser', 'Password123!');
     expect(mockAuthRepository.create).toHaveBeenCalledWith({
       email: 'new@example.com',
       username: 'newuser',
       password_hash: expect.any(String),
       cognito_sub: 'cognito-sub-123',
     });
-    expect(setUserPassword).toHaveBeenCalledWith('newuser', 'Password123!', true);
+    expect(mockAuthProvider.setUserPassword).toHaveBeenCalledWith('newuser', 'Password123!', true);
     expect(result).toEqual({ id: 1, email: 'new@example.com', username: 'newuser' });
   });
 
@@ -69,7 +71,7 @@ describe('RegisterUseCase', () => {
   it('should throw error when Cognito user creation fails', async () => {
     mockAuthRepository.findByUsername.mockResolvedValue(null);
     mockAuthRepository.findByEmail.mockResolvedValue(null);
-    (createUser as jest.Mock).mockResolvedValue(undefined);
+    mockAuthProvider.createUser.mockRejectedValue(new Error('Error creating user in Cognito'));
 
     await expect(registerUseCase.execute('test@test.com', 'testuser', 'Password123!'))
       .rejects

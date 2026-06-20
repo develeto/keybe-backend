@@ -2,6 +2,7 @@ import { OrdersRepository } from '@/modules/orders/domain/repositories/orders.re
 import { OrderStatus, canTransition } from '@/modules/orders/domain/value-objects/order-status';
 import { sendMessage } from '@/shared/infrastructure/aws/sqs';
 import { ConflictError, ValidationError } from '@/shared/utils/error-handler.utils';
+import { OrderNotificationPort } from '@/shared/domain/ports/order-notification.port';
 
 export class CreateOrderUseCase {
   constructor(private readonly ordersRepository: OrdersRepository) {}
@@ -67,16 +68,27 @@ export class GetOrderUseCase {
 }
 
 export class ProcessOrderUseCase {
-  constructor(private readonly ordersRepository: OrdersRepository) {}
+  constructor(
+    private readonly ordersRepository: OrdersRepository,
+    private readonly notificationPort: OrderNotificationPort
+  ) {}
 
   async execute(orderId: number) {
     const order = await this.ordersRepository.findById(orderId);
     if (!order) throw new ValidationError('Order not found');
-    if (!canTransition(order.status as OrderStatus, 'PROCESSING')) {
-      throw new ValidationError(`Cannot process order in status ${order.status}`);
+    
+    const fromStatus = order.status as OrderStatus;
+    if (!canTransition(fromStatus, 'PROCESSING')) {
+      throw new ValidationError(`Cannot process order in status ${fromStatus}`);
     }
 
     await this.ordersRepository.updateStatus(orderId, 'PROCESSING');
+    await this.notificationPort.notifyStatusChanged({
+      orderId,
+      fromStatus,
+      toStatus: 'PROCESSING',
+      timestamp: new Date().toISOString(),
+    });
 
     // Simular procesamiento (validación de stock, etc.)
     const items = JSON.parse(order.items);
@@ -86,6 +98,12 @@ export class ProcessOrderUseCase {
     );
 
     await this.ordersRepository.updateStatus(orderId, 'COMPLETED');
+    await this.notificationPort.notifyStatusChanged({
+      orderId,
+      fromStatus: 'PROCESSING',
+      toStatus: 'COMPLETED',
+      timestamp: new Date().toISOString(),
+    });
 
     return { id: orderId, status: 'COMPLETED' as const, total: processedTotal };
   }

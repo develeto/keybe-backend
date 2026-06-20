@@ -1,13 +1,13 @@
 import { OrderAdminPort } from '@/shared/domain/ports/order-admin.port';
-import { getDatabaseInstance } from '@/shared/infrastructure/db/kysely-client';
-import { OrderNotificationAdapter } from '@/shared/infrastructure/notifications/order-notification.adapter';
-import { sql } from 'kysely';
+import { Kysely, sql } from 'kysely';
+import type { OrderFlowDatabase } from '@/shared/infrastructure/db/models';
 
 export class OrderAdminAdapter implements OrderAdminPort {
+  constructor(private readonly db: Kysely<OrderFlowDatabase>) {}
+
   async findAll(limit = 20, offset = 0, statusFilter?: string) {
-    const db = await getDatabaseInstance();
-    let query = db.selectFrom('orders').selectAll();
-    let countQuery = db.selectFrom('orders').select(db.fn.countAll<number>().as('total'));
+    let query = this.db.selectFrom('orders').selectAll();
+    let countQuery = this.db.selectFrom('orders').select(this.db.fn.countAll<number>().as('total'));
 
     if (statusFilter) {
       query = query.where('status', '=', statusFilter as any);
@@ -25,8 +25,7 @@ export class OrderAdminAdapter implements OrderAdminPort {
   }
 
   async findById(id: number) {
-    const db = await getDatabaseInstance();
-    const result = await db
+    const result = await this.db
       .selectFrom('orders')
       .select(['id', 'status', 'items'])
       .where('id', '=', id)
@@ -37,17 +36,12 @@ export class OrderAdminAdapter implements OrderAdminPort {
   }
 
   async updateStatus(id: number, status: string): Promise<void> {
-    const db = await getDatabaseInstance();
-    let fromStatus = 'UNKNOWN';
-
-    await db.transaction().execute(async (trx) => {
+    await this.db.transaction().execute(async (trx) => {
       const current = await trx
         .selectFrom('orders')
         .select('status')
         .where('id', '=', id)
         .executeTakeFirst();
-
-      fromStatus = current?.status as string ?? 'UNKNOWN';
 
       await trx
         .updateTable('orders')
@@ -59,19 +53,11 @@ export class OrderAdminAdapter implements OrderAdminPort {
         .insertInto('order_status_history')
         .values({
           order_id: id,
-          from_status: fromStatus,
+          from_status: current?.status as string ?? 'UNKNOWN',
           to_status: status,
           created_at: sql`NOW()`,
         })
         .execute();
-    });
-
-    const notifier = new OrderNotificationAdapter();
-    await notifier.notifyStatusChanged({
-      orderId: id,
-      fromStatus: fromStatus,
-      toStatus: status,
-      timestamp: new Date().toISOString(),
     });
   }
 }

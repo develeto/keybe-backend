@@ -2,22 +2,19 @@ import { ResponseHelper } from '@/shared/utils/http-response.utils';
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { validateInput } from '@/shared/utils/validate-input.utils';
 import { CreateOrderSchema, TCreateOrderDto } from '@/modules/orders/application/dtos/order.dto';
-import { CreateOrderUseCase, ListOrdersUseCase, GetOrderUseCase } from '@/modules/orders/application/uses-cases';
-import ordersRepository from '@/modules/orders/config/dependencies';
-import { UserLookupAdapter } from '@/shared/infrastructure/db/user-lookup.adapter';
-
-const userLookup = new UserLookupAdapter();
+import {
+  createOrderUseCase,
+  listOrdersUseCase,
+  getOrderUseCase,
+  userLookupAdapter,
+} from '@/modules/orders/config/dependencies';
 
 async function resolveUserId(event: APIGatewayProxyEvent): Promise<number> {
   const cognitoSub = event.requestContext?.authorizer?.jwt?.claims?.sub as string | undefined;
   if (!cognitoSub) return 0;
-  const userId = await userLookup.findByCognitoSub(cognitoSub);
+  const userId = await userLookupAdapter.findByCognitoSub(cognitoSub);
   return userId ?? 0;
 }
-
-const createOrderUseCase = new CreateOrderUseCase(ordersRepository);
-const listOrdersUseCase = new ListOrdersUseCase(ordersRepository);
-const getOrderUseCase = new GetOrderUseCase(ordersRepository);
 
 export const createOrder = async (
   event: APIGatewayProxyEvent,

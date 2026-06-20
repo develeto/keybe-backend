@@ -1,16 +1,13 @@
 import { LoginUseCase } from '@/modules/auth/application/uses-cases/auth.use-cases';
 import { AuthRepository } from '@/modules/auth/domain/repositories/auth.repository.interface';
-import { loginUser } from '@/shared/infrastructure/aws/cognito';
+import { AuthProviderPort } from '@/shared/domain/ports/auth-provider.port';
 import { UnauthorizedError } from '@/shared/utils/error-handler.utils';
 import bcrypt from 'bcryptjs';
-
-jest.mock('@/shared/infrastructure/aws/cognito', () => ({
-  loginUser: jest.fn(),
-}));
 
 describe('LoginUseCase', () => {
   let loginUseCase: LoginUseCase;
   let mockAuthRepository: jest.Mocked<AuthRepository>;
+  let mockAuthProvider: jest.Mocked<AuthProviderPort>;
 
   const validHash = bcrypt.hashSync('Password123!', 10);
   const mockUser = {
@@ -30,28 +27,35 @@ describe('LoginUseCase', () => {
       updateCognitoSub: jest.fn(),
     };
 
-    loginUseCase = new LoginUseCase(mockAuthRepository);
+    mockAuthProvider = {
+      login: jest.fn(),
+      createUser: jest.fn(),
+      setUserPassword: jest.fn(),
+    };
+
+    loginUseCase = new LoginUseCase(mockAuthRepository, mockAuthProvider);
     jest.clearAllMocks();
   });
 
   it('should return token and user on successful login', async () => {
     const mockAuthResult = {
-      AccessToken: 'mock-access-token',
-      IdToken: 'mock-id-token',
-      RefreshToken: 'mock-refresh-token',
+      accessToken: 'mock-access-token',
+      idToken: 'mock-id-token',
+      refreshToken: 'mock-refresh-token',
     };
 
-    const mockCognitoResponse = {
-      AuthenticationResult: mockAuthResult,
+    const mockLoginResponse = {
+      tokens: mockAuthResult,
+      username: 'testuser',
     };
 
     mockAuthRepository.findByUsername.mockResolvedValue(mockUser as any);
-    (loginUser as jest.Mock).mockResolvedValue(mockCognitoResponse);
+    mockAuthProvider.login.mockResolvedValue(mockLoginResponse);
 
     const result = await loginUseCase.execute('testuser', 'Password123!');
 
     expect(mockAuthRepository.findByUsername).toHaveBeenCalledWith('testuser');
-    expect(loginUser).toHaveBeenCalledWith('testuser', 'Password123!');
+    expect(mockAuthProvider.login).toHaveBeenCalledWith('testuser', 'Password123!');
     expect(result).toEqual({
       token: mockAuthResult,
       user: {

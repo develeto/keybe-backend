@@ -1,25 +1,24 @@
 import { OrdersRepository } from '@/modules/orders/domain/repositories/orders.repository.interface';
 import { OrderStatus } from '@/modules/orders/domain/value-objects/order-status';
-import { getDatabaseInstance } from '@/shared/infrastructure/db/kysely-client';
-import { OrderNotificationAdapter } from '@/shared/infrastructure/notifications/order-notification.adapter';
-import { sql } from 'kysely';
+import { Kysely, sql } from 'kysely';
+import type { OrderFlowDatabase } from '@/shared/infrastructure/db/models';
 
 export class OrdersDbRepository implements OrdersRepository {
+  constructor(private readonly db: Kysely<OrderFlowDatabase>) {}
+
   async findById(id: number) {
-    const db = await getDatabaseInstance();
-    const result = await db.selectFrom('orders').selectAll().where('id', '=', id).executeTakeFirst();
+    const result = await this.db.selectFrom('orders').selectAll().where('id', '=', id).executeTakeFirst();
     return result ?? null;
   }
 
   async findByUser(userId: number, limit = 20, offset = 0) {
-    const db = await getDatabaseInstance();
-    const countResult = await db
+    const countResult = await this.db
       .selectFrom('orders')
-      .select(db.fn.countAll<number>().as('total'))
+      .select(this.db.fn.countAll<number>().as('total'))
       .where('user_id', '=', userId)
       .executeTakeFirst();
 
-    const orders = await db
+    const orders = await this.db
       .selectFrom('orders')
       .selectAll()
       .where('user_id', '=', userId)
@@ -32,8 +31,7 @@ export class OrdersDbRepository implements OrdersRepository {
   }
 
   async findByIdempotencyKey(key: string) {
-    const db = await getDatabaseInstance();
-    const result = await db
+    const result = await this.db
       .selectFrom('orders')
       .select(['id', 'status', 'total', 'items', 'created_at'])
       .where('idempotency_key', '=', key)
@@ -48,8 +46,7 @@ export class OrdersDbRepository implements OrdersRepository {
     items: string;
     idempotency_key: string;
   }): Promise<number> {
-    const db = await getDatabaseInstance();
-    const result = await db
+    const result = await this.db
       .insertInto('orders')
       .values({
         user_id: data.user_id,
@@ -65,17 +62,12 @@ export class OrdersDbRepository implements OrdersRepository {
   }
 
   async updateStatus(id: number, status: OrderStatus): Promise<void> {
-    const db = await getDatabaseInstance();
-    let fromStatus = 'UNKNOWN';
-
-    await db.transaction().execute(async (trx) => {
+    await this.db.transaction().execute(async (trx) => {
       const current = await trx
         .selectFrom('orders')
         .select('status')
         .where('id', '=', id)
         .executeTakeFirst();
-
-      fromStatus = current?.status ?? 'UNKNOWN';
 
       await trx
         .updateTable('orders')
@@ -87,26 +79,17 @@ export class OrdersDbRepository implements OrdersRepository {
         .insertInto('order_status_history')
         .values({
           order_id: id,
-          from_status: fromStatus,
+          from_status: current?.status ?? 'UNKNOWN',
           to_status: status,
           created_at: sql`NOW()`,
         })
         .execute();
     });
-
-    const notifier = new OrderNotificationAdapter();
-    await notifier.notifyStatusChanged({
-      orderId: id,
-      fromStatus,
-      toStatus: status,
-      timestamp: new Date().toISOString(),
-    });
   }
 
   async findAll(limit = 20, offset = 0, statusFilter?: OrderStatus) {
-    const db = await getDatabaseInstance();
-    let query = db.selectFrom('orders').selectAll();
-    let countQuery = db.selectFrom('orders').select(db.fn.countAll<number>().as('total'));
+    let query = this.db.selectFrom('orders').selectAll();
+    let countQuery = this.db.selectFrom('orders').select(this.db.fn.countAll<number>().as('total'));
 
     if (statusFilter) {
       query = query.where('status', '=', statusFilter);

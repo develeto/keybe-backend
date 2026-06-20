@@ -1,6 +1,7 @@
 import { AdminListOrdersUseCase, AdminUpdateOrderStatusUseCase } from '@/modules/admin/application/uses-cases/admin.use-cases';
 import { AdminOrdersRepository } from '@/modules/admin/domain/repositories/admin.repository.interface';
 import { ValidationError } from '@/shared/utils/error-handler.utils';
+import { OrderNotificationPort } from '@/shared/domain/ports/order-notification.port';
 
 describe('AdminListOrdersUseCase', () => {
   let useCase: AdminListOrdersUseCase;
@@ -20,7 +21,7 @@ describe('AdminListOrdersUseCase', () => {
       orders: [{ id: 1, user_id: 1, status: 'PENDING', total: 100, items: '[]', created_at: new Date(), updated_at: new Date() }],
       total: 1,
     };
-    mockRepo.findAll.mockResolvedValue(mockResult);
+    mockRepo.findAll.mockResolvedValue(mockResult as any);
 
     const result = await useCase.execute(10, 0);
 
@@ -37,6 +38,7 @@ describe('AdminListOrdersUseCase', () => {
 describe('AdminUpdateOrderStatusUseCase', () => {
   let useCase: AdminUpdateOrderStatusUseCase;
   let mockRepo: jest.Mocked<AdminOrdersRepository>;
+  let mockNotification: jest.Mocked<OrderNotificationPort>;
 
   beforeEach(() => {
     mockRepo = {
@@ -44,16 +46,25 @@ describe('AdminUpdateOrderStatusUseCase', () => {
       findAll: jest.fn(),
       updateStatus: jest.fn(),
     };
-    useCase = new AdminUpdateOrderStatusUseCase(mockRepo);
+    mockNotification = {
+      notifyStatusChanged: jest.fn(),
+    };
+    useCase = new AdminUpdateOrderStatusUseCase(mockRepo, mockNotification);
   });
 
   it('should update order status successfully', async () => {
-    mockRepo.findById.mockResolvedValue({ id: 1, status: 'PENDING', items: '[]' });
+    mockRepo.findById.mockResolvedValue({ id: 1, status: 'PENDING', items: '[]' } as any);
     mockRepo.updateStatus.mockResolvedValue(undefined);
 
     const result = await useCase.execute(1, 'PROCESSING');
 
     expect(mockRepo.updateStatus).toHaveBeenCalledWith(1, 'PROCESSING');
+    expect(mockNotification.notifyStatusChanged).toHaveBeenCalledWith({
+      orderId: 1,
+      fromStatus: 'PENDING',
+      toStatus: 'PROCESSING',
+      timestamp: expect.any(String),
+    });
     expect(result).toEqual({ id: 1, status: 'PROCESSING' });
   });
 
@@ -63,7 +74,7 @@ describe('AdminUpdateOrderStatusUseCase', () => {
   });
 
   it('should throw when status transition is invalid', async () => {
-    mockRepo.findById.mockResolvedValue({ id: 1, status: 'COMPLETED', items: '[]' });
+    mockRepo.findById.mockResolvedValue({ id: 1, status: 'COMPLETED', items: '[]' } as any);
     await expect(useCase.execute(1, 'PENDING')).rejects.toThrow('Cannot transition from COMPLETED to PENDING');
   });
 });

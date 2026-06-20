@@ -4,7 +4,7 @@ import type { OrderFlowDatabase } from './models';
 
 let dbInstance: Kysely<OrderFlowDatabase> | null = null;
 
-export async function getDatabaseInstance(): Promise<Kysely<OrderFlowDatabase>> {
+export function getDatabaseInstance(): Kysely<OrderFlowDatabase> {
   if (dbInstance) return dbInstance;
 
   const connectionString = process.env.DATABASE_URL;

@@ -1,10 +1,13 @@
 import { AuthRepository } from '../../domain/repositories/auth.repository.interface';
-import { loginUser, createUser, setUserPassword } from '@/shared/infrastructure/aws/cognito';
+import { AuthProviderPort } from '@/shared/domain/ports/auth-provider.port';
 import { UnauthorizedError, ConflictError } from '@/shared/utils/error-handler.utils';
 import bcrypt from 'bcryptjs';
 
 export class LoginUseCase {
-  constructor(private readonly authRepository: AuthRepository) {}
+  constructor(
+    private readonly authRepository: AuthRepository,
+    private readonly authProvider: AuthProviderPort
+  ) {}
 
   async execute(username: string, password: string) {
     const user = await this.authRepository.findByUsername(username);
@@ -17,10 +20,10 @@ export class LoginUseCase {
       throw new UnauthorizedError('Usuario o contraseña incorrectos');
     }
 
-    const cognitoResult = await loginUser(user.username, password);
+    const authResult = await this.authProvider.login(user.username, password);
 
     return {
-      token: cognitoResult.AuthenticationResult ?? undefined,
+      token: authResult.tokens,
       user: {
         id: user.id,
         email: user.email,
@@ -32,7 +35,10 @@ export class LoginUseCase {
 }
 
 export class RegisterUseCase {
-  constructor(private readonly authRepository: AuthRepository) {}
+  constructor(
+    private readonly authRepository: AuthRepository,
+    private readonly authProvider: AuthProviderPort
+  ) {}
 
   async execute(email: string, username: string, password: string) {
     const existingUser = await this.authRepository.findByUsername(username);
@@ -45,10 +51,7 @@ export class RegisterUseCase {
       throw new ConflictError('El email ya está registrado');
     }
 
-    const cognitoSub = await createUser(email, username, password);
-    if (!cognitoSub) {
-      throw new Error('Error creating user in Cognito');
-    }
+    const cognitoSub = await this.authProvider.createUser(email, username, password);
 
     const passwordHash = bcrypt.hashSync(password, 10);
     const userId = await this.authRepository.create({
@@ -58,7 +61,7 @@ export class RegisterUseCase {
       cognito_sub: cognitoSub,
     });
 
-    await setUserPassword(username, password, true);
+    await this.authProvider.setUserPassword(username, password, true);
 
     return { id: userId, email, username };
   }
