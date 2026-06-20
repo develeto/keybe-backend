@@ -18,27 +18,78 @@ Backend serverless para gestión de pedidos, construido con TypeScript, AWS CDK 
 | Tests | Jest + ts-jest |
 | CI/CD | GitHub Actions (OIDC) |
 
-## Arquitectura
+## Descripción de la aplicación
 
+OrderFlow cubre 6 necesidades funcionales. Aquí cómo se resolvió cada una:
+
+### 1. Usuarios y autenticación
+
+Login y registro vía Amazon Cognito + JWT. Los handlers validan con Zod, verifican bcrypt contra la BD y delegan en Cognito para emitir tokens. API Gateway valida el JWT automáticamente (sin Lambda custom authorizer).
+
+**Flujo**: `POST /auth/login` → valida input → busca usuario en BD → verifica password con bcrypt → `AdminInitiateAuth` en Cognito → devuelve tokens JWT → el cliente usa el `IdToken` en el header `Authorization` para endpoints protegidos.
+
+**Archivos clave**: `src/modules/auth/interfaces/api/login.handler.ts`, `register.handler.ts`, `src/shared/infrastructure/aws/cognito.ts`
+
+### 2. Gestión de pedidos
+
+Cliente autenticado crea pedidos (con idempotencia vía header `Idempotency-Key`), lista los suyos y consulta detalles. Unique constraint en `orders.idempotency_key` garantiza que no haya duplicados.
+
+**Flujo**: `POST /orders` (con JWT + Idempotency-Key) → valida input → resuelve userId desde Cognito `sub` → inserta en BD → encola mensaje en SQS → responde 201. `GET /orders` lista del usuario autenticado. `GET /orders/{id}` obtiene uno verificando pertenencia.
+
+**Archivos clave**: `src/modules/orders/interfaces/api/order.handlers.ts`, `src/modules/orders/infrastructure/db/orders.repository.ts`
+
+### 3. Procesamiento de pedidos (asíncrono)
+
+Cada pedido se procesa en background vía SQS. El handler es invocado por el evento SQS, transiciona el estado PENDING → PROCESSING → COMPLETED (validado por `canTransition()`), y registra el historial en `order_status_history`.
+
+**Flujo**: CreateOrder encola `{ orderId, action: "PROCESS_ORDER" }` → SQS dispara `ProcessOrderFunction` → cambia a PROCESSING → (simula trabajo) → cambia a COMPLETED. Si falla: 3 reintentos con backoff, luego a DLQ.
+
+**Arquitectura**: SQS estándar + DLQ con `maxReceiveCount=3`, `visibilityTimeout=60s`.
+
+**Archivos clave**: `src/modules/orders/infrastructure/sqs/process-order.handler.ts`, `src/shared/domain/value-objects/order-status.ts` (transiciones)
+
+### 4. Administración
+
+El módulo admin permite listar todos los pedidos y actualizar su estado (con validación de transiciones). Sigue el patrón puerto-adaptador: `OrderAdminPort` en shared define la interfaz, `OrderAdminAdapter` implementa con Kysely directo — sin importar infraestructura del módulo orders.
+
+**Flujo**: `GET /admin/orders` → listar todos (opcional filter por status). `PATCH /admin/orders/{id}/status` → validar transición → actualizar + historial + notificar SNS.
+
+**Transiciones válidas**: PENDING → PROCESSING, PENDING → CANCELLED, PROCESSING → COMPLETED, PROCESSING → FAILED.
+
+**Archivos clave**: `src/modules/admin/interfaces/api/admin.handlers.ts`, `src/shared/infrastructure/db/order-admin.adapter.ts`, `src/shared/domain/ports/order-admin.port.ts`
+
+### 5. Tareas recurrentes
+
+Cada 5 minutos, EventBridge dispara `ReportMetricsFunction` que consulta la BD y loguea métricas con Pino (total orders, pendientes, completados hoy). Las alarmas CloudWatch monitorean errores de todas las Lambdas.
+
+**Infraestructura**: Regla EventBridge `rate(5 minutes)` → target Lambda. 11 alarmas CloudWatch (1 por Lambda, errors > 0 en 5 min).
+
+**Archivos clave**: `src/modules/orders/infrastructure/sqs/report-metrics.handler.ts`, `cdk/lib/order-flow-stack.ts:248-251`
+
+### 6. Avisos de cambios de estado
+
+Cuando un pedido cambia de estado (por admin o por procesamiento asíncrono), se publica un mensaje JSON en un tópico SNS. Cualquier servicio externo puede suscribirse (email, SMS, Lambda, SQS, HTTP).
+
+**Formato del mensaje SNS**:
+```json
+{
+  "event": "order.status.changed",
+  "orderId": 1,
+  "fromStatus": "PENDING",
+  "toStatus": "PROCESSING",
+  "timestamp": "2026-06-20T16:00:00.000Z"
+}
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Auth Module │     │ Orders Module│     │ Admin Module │
-│  (login,reg) │     │ (CRUD, SQS)  │     │(list,update) │
-├──────────────┤     ├──────────────┤     ├──────────────┤
-│  Domain      │     │  Domain      │     │  Application │
-│  Application │     │  Application │     │  Interfaces  │
-│  Infraestruc │     │  Infraestruc │     │              │
-│  Interfaces  │     │  Interfaces  │     │              │
-└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
-       │                    │                    │
-       └────────────────────┼────────────────────┘
-                            │
-                     ┌──────┴──────┐
-                     │   Shared    │
-                     │ (DB, Cache, │
-                     │  AWS, Utils)│
-                     └─────────────┘
-```
+
+**Arquitectura**: `OrderNotificationPort` (interfaz) → `OrderNotificationAdapter` → `publishToTopic()` en SNS. El topic ARN se inyecta vía env var `ORDER_STATUS_CHANGED_TOPIC_ARN`.
+
+**Tópico SNS**: `arn:aws:sns:us-east-1:266176113590:order-flow-status-changed`
+
+**Archivos clave**: `src/shared/domain/ports/order-notification.port.ts`, `src/shared/infrastructure/notifications/order-notification.adapter.ts`, `src/shared/infrastructure/aws/sns.ts`
+
+---
+
+## Stack Tecnológico
 
 ## Prerrequisitos
 

@@ -314,3 +314,55 @@ modules/admin/
 - Los casos de uso de admin dependen únicamente de la interfaz (puerto), no de la implementación.
 - Se duplica ligeramente la lógica de queries (vs OrdersDbRepository), pero se gana independencia total entre módulos.
 - Los value objects compartidos (`OrderStatus`) también se movieron a `shared/domain/value-objects/` para evitar dependencias entre módulos a nivel de dominio.
+
+---
+
+## ADR-017: SNS para notificaciones de cambios de estado
+
+**Contexto**: Cuando un pedido cambia de estado (PENDING → PROCESSING → COMPLETED, o por acción del admin), deben poder desencadenarse reacciones externas (emails, webhooks, SMS, u otros procesos). La solución debe ser desacoplada y extensible.
+
+**Decisión**: Publicar un mensaje JSON en un tópico SNS cada vez que se actualiza el estado de un pedido, siguiendo el patrón puerto-adaptador dentro del shared kernel.
+
+**Arquitectura**:
+```
+OrderNotificationPort (interfaz en shared/domain/ports/)
+  ↑ implementa
+OrderNotificationAdapter (en shared/infrastructure/notifications/)
+  → publishToTopic (SNS via @aws-sdk/client-sns)
+```
+
+**¿Dónde se dispara?**
+- `OrderAdminAdapter.updateStatus()` — cuando admin cambia estado vía API
+- `OrdersDbRepository.updateStatus()` — cuando el procesamiento asíncrono cambia estado
+
+**Alternativas consideradas**:
+- **SQS directo**: Cola de notificaciones separada. Requiere otro Lambda suscriptor. Más hops y latencia. SNS permite suscripciones directas a email/SMS sin código.
+- **EventBridge custom events**: Similar a SNS pero con schema registry y filtering. Sobredimensionado para un solo tipo de evento.
+- **Webhook síncrono**: Acopla el cambio de estado al envío de la notificación. Si el webhook falla, la transición de estado falla.
+
+**Trade-offs**:
+- SNS: pub/sub nativo, soporta múltiples tipos de suscripción sin código adicional.
+- No hay reintentos automáticos de publicación (si SNS falla, el mensaje se pierde). Para garantía total, se podría encolar en SQS primero y luego publicar desde ahí.
+- El topic está vacío por defecto — quien quiera recibir notificaciones debe suscribirse (email, SQS, Lambda, etc.).
+- Es responsabilidad del subscriptor manejar el mensaje; SNS no reintenta en fallos de entrega (excepto en suscripciones SQS con DLQ configurable).
+
+---
+
+## ADR-018: EventBridge para tareas recurrentes
+
+**Contexto**: La plataforma necesita ejecutar trabajo periódico (reporte de métricas). No hay un usuario o evento que lo gatille; debe ocurrir en un intervalo fijo.
+
+**Decisión**: Regla EventBridge con `schedule: rate(5 minutes)` que dispara `ReportMetricsFunction` (Lambda). La función consulta la BD y loguea métricas con Pino.
+
+**Alternativas consideradas**:
+- **CloudWatch Events (Schedule)**: API anterior, funcionalmente idéntica pero EventBridge es el servicio moderno recomendado.
+- **Cron en EC2**: Una tarea cron en el bastion host. Menos fiable (si la instancia se cae, no hay alerta), más mantenimiento.
+- **Lambda + CloudWatch Alarm recursivo**: Una Lambda que se auto-invoca con `PutMetricAlarm`. Más complejo, menos fiable.
+
+**Trade-offs**:
+- EventBridge: Serverless, sin servidor que mantener, alta disponibilidad.
+- rate(5 min): Frecuencia arbitraria, configurable vía CDK sin redeploy de código.
+- La función es liviana (~150KB), cold start < 1s.
+- Si la Lambda falla, EventBridge reintenta hasta 24h por defecto (configurable).
+- Métricas logueadas con Pino → CloudWatch Logs → consultables con Logs Insights.
+- 11 alarmas CloudWatch (1 por Lambda) monitorean errores en períodos de 5 minutos.
