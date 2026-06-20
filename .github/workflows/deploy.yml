@@ -1,0 +1,69 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'cdk/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+jobs:
+  quality:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm tsc --noEmit
+      - run: pnpm run test:coverage
+
+  deploy:
+    name: Deploy to AWS
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: CDK Synth
+        run: pnpm cdk synth
+
+      - name: CDK Deploy
+        run: pnpm cdk deploy --all --require-approval never
+
+      - name: Output API URL
+        run: |
+          echo "Deployed successfully!"
+          echo "API URL: https://$(aws apigatewayv2 get-apis --query 'Items[?Name==`order-flow-api`].ApiEndpoint' --output text)"

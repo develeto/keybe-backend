@@ -1,0 +1,14 @@
+node_modules/
+dist/
+cdk.out/
+coverage/
+.serverless/
+*.js.map
+*.d.ts
+.env
+.env.local
+*.log
+.DS_Store
+
+# Credenciales del proyecto (compartir por email/correo, no git)
+credentials.txt
