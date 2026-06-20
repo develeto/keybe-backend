@@ -13,6 +13,8 @@ import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as cloudwatchActions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -56,13 +58,15 @@ export class OrderFlowStack extends cdk.Stack {
     });
     bastionSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'Allow SSH from anywhere');
 
+    const bastionKeyPair = ec2.KeyPair.fromKeyPairName(this, 'BastionKeyPair', 'order-flow-bastion-key-v2');
+
     new ec2.Instance(this, 'BastionHost', {
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.NANO),
       machineImage: ec2.MachineImage.latestAmazonLinux2023({ cpuType: ec2.AmazonLinuxCpuType.ARM_64 }),
       securityGroup: bastionSg,
-      keyName: 'order-flow-bastion-key-v2',
+      keyPair: bastionKeyPair,
     });
 
     // ──────────────────────────────────────────────
@@ -293,6 +297,25 @@ export class OrderFlowStack extends cdk.Stack {
     addRoute('/docs/ui', [apigw.HttpMethod.GET], swaggerFn);
 
     orderStatusChangedTopic.grantPublish(lambdaRole);
+
+    // ──────────────────────────────────────────────
+    // CloudWatch Alarm — Lambda Errors
+    // ──────────────────────────────────────────────
+    const allFunctions = [
+      loginFn, registerFn, createOrderFn, listOrdersFn, getOrderFn,
+      adminListOrdersFn, adminUpdateStatusFn, processOrderFn, reportMetricsFn,
+      openapiFn, swaggerFn,
+    ];
+
+    for (const fn of allFunctions) {
+      const errorMetric = fn.metricErrors({ period: cdk.Duration.minutes(5) });
+      new cloudwatch.Alarm(this, `${fn.node.id}ErrorAlarm`, {
+        metric: errorMetric,
+        threshold: 1,
+        evaluationPeriods: 1,
+        alarmDescription: `${fn.node.id} has errors > 0 in 5 minutes`,
+      });
+    }
 
     // ──────────────────────────────────────────────
     // Outputs
