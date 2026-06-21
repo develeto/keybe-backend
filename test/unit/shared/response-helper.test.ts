@@ -68,9 +68,43 @@ describe('ResponseHelper', () => {
     expect(result.statusCode).toBe(401);
   });
 
+  it('should handle ForbiddenError via handleError', () => {
+    const error = new Error('Access denied');
+    error.name = 'ForbiddenError';
+    const result = ResponseHelper.handleError(error);
+    expect(result.statusCode).toBe(403);
+  });
+
   it('should handle unknown error as 500 via handleError', () => {
     const error = new Error('Unexpected');
     const result = ResponseHelper.handleError(error);
     expect(result.statusCode).toBe(500);
+  });
+
+  it('should use default message and no requestId', () => {
+    const result = ResponseHelper.success({ id: 1 });
+    expect(result.statusCode).toBe(200);
+    expect(result.headers).not.toHaveProperty('X-Request-Id');
+  });
+
+  it('should use default error message via handleError', () => {
+    const error = new Error();
+    const result = ResponseHelper.handleError(error);
+    expect(result.statusCode).toBe(500);
+    expect(JSON.parse(result.body).message).toBe('Unexpected error');
+  });
+
+  it('should return not found without custom message', () => {
+    const result = ResponseHelper.notFound();
+    expect(result.statusCode).toBe(404);
+    expect(JSON.parse(result.body).message).toBe('Resource not found');
+  });
+
+  it('should use default messages for all shortcut methods', () => {
+    expect(ResponseHelper.created({ id: 1 }).statusCode).toBe(201);
+    expect(ResponseHelper.badRequest('err').statusCode).toBe(400);
+    expect(ResponseHelper.unauthorized().statusCode).toBe(401);
+    expect(ResponseHelper.forbidden().statusCode).toBe(403);
+    expect(ResponseHelper.internalServerError('err').statusCode).toBe(500);
   });
 });

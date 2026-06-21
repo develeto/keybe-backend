@@ -33,6 +33,15 @@ describe('AdminListOrdersUseCase', () => {
     await useCase.execute(20, 0, 'COMPLETED');
     expect(mockRepo.findAll).toHaveBeenCalledWith(20, 0, 'COMPLETED');
   });
+
+  it('should use default pagination when not provided', async () => {
+    mockRepo.findAll.mockResolvedValue({ orders: [], total: 0 } as any);
+
+    const result = await useCase.execute();
+
+    expect(mockRepo.findAll).toHaveBeenCalledWith(20, 0, undefined);
+    expect(result).toEqual({ orders: [], total: 0 });
+  });
 });
 
 describe('AdminUpdateOrderStatusUseCase', () => {

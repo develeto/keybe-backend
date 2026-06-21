@@ -19,9 +19,9 @@ export class ResponseHelper {
     statusCode: number,
     status: ResponseStatus,
     message: string,
-    data: T | null = null,
-    error: unknown | false = false,
-    requestId = ''
+    data: T | null,
+    error: unknown | false,
+    requestId: string
   ): APIGatewayProxyResult {
     const body: ResponseBody<T> = { status, message, data, error };
     const headers = {

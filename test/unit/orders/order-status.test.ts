@@ -47,4 +47,9 @@ describe('OrderStatus', () => {
       'FAILED',
     ]);
   });
+
+  it('should return false for unknown status', () => {
+    expect(canTransition('UNKNOWN' as any, 'PENDING')).toBe(false);
+    expect(canTransition('PENDING', 'UNKNOWN' as any)).toBe(false);
+  });
 });

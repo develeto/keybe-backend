@@ -57,5 +57,7 @@ describe('Error Classes', () => {
     expect(new ValidationError().message).toBe('Invalid data');
     expect(new UnauthorizedError().message).toBe('Unauthorized');
     expect(new ForbiddenError().message).toBe('Forbidden');
+    expect(new BadRequestError().message).toBe('Bad request');
+    expect(new ConflictError().message).toBe('Resource already exists');
   });
 });

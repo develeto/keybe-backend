@@ -95,4 +95,18 @@ describe('InMemoryCache', () => {
     expect(cache.keys()).toEqual(['key2']);
     jest.useRealTimers();
   });
+
+  it('should return false for has() when entry is expired', () => {
+    jest.useFakeTimers();
+    const systemTime = Date.now();
+    jest.setSystemTime(systemTime);
+
+    cache.set('key', 'val', 5000);
+    expect(cache.has('key')).toBe(true);
+
+    jest.setSystemTime(systemTime + 5001);
+
+    expect(cache.has('key')).toBe(false);
+    jest.useRealTimers();
+  });
 });

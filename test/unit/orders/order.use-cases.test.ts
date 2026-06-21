@@ -166,6 +166,15 @@ describe('ListOrdersUseCase', () => {
     expect(mockRepo.findByUser).toHaveBeenCalledWith(1, 10, 0);
     expect(result).toEqual(mockResult);
   });
+
+  it('should use default pagination when not provided', async () => {
+    mockRepo.findByUser.mockResolvedValue({ orders: [], total: 0 });
+
+    const result = await useCase.execute(1);
+
+    expect(mockRepo.findByUser).toHaveBeenCalledWith(1, 20, 0);
+    expect(result).toEqual({ orders: [], total: 0 });
+  });
 });
 
 describe('GetOrderUseCase', () => {
