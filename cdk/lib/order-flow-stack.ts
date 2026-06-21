@@ -212,8 +212,6 @@ export class OrderFlowStack extends cdk.Stack {
       memorySize: 256,
       bundling: {
         target: 'node20',
-        externalModules: ['mysql2', 'kysely', 'bcryptjs'],
-        nodeModules: ['mysql2', 'kysely', 'bcryptjs'],
       },
     };
 
