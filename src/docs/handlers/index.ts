@@ -477,7 +477,6 @@ function buildOpenApiSpec(baseUrl?: string) {
         },
       },
     },
-  },
     '/admin/products': {
       post: {
         tags: ['Products'],
@@ -718,6 +717,7 @@ function buildOpenApiSpec(baseUrl?: string) {
         },
       },
     },
+  },
   components: {
     securitySchemes: {
       bearerAuth: {
