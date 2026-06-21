@@ -1,5 +1,5 @@
 import { ProductsRepository } from '@/modules/products/domain/repositories/products.repository.interface';
-import { NotFoundError, ConflictError } from '@/shared/utils/error-handler.utils';
+import { NotFoundError } from '@/shared/utils/error-handler.utils';
 import type { CreateProductData, UpdateProductData } from '@/modules/products/domain/repositories/products.repository.interface';
 
 export class CreateProductUseCase {

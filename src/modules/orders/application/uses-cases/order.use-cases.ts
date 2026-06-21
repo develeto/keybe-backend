@@ -2,7 +2,7 @@ import { OrdersRepository } from '@/modules/orders/domain/repositories/orders.re
 import { ProductsRepository } from '@/modules/products/domain/repositories/products.repository.interface';
 import { OrderStatus, canTransition } from '@/modules/orders/domain/value-objects/order-status';
 import { sendMessage } from '@/shared/infrastructure/aws/sqs';
-import { ConflictError, ValidationError } from '@/shared/utils/error-handler.utils';
+import { ValidationError } from '@/shared/utils/error-handler.utils';
 import { OrderNotificationPort } from '@/shared/domain/ports/order-notification.port';
 
 export class CreateOrderUseCase {

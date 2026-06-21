@@ -14,7 +14,6 @@
  */
 
 import http from 'http';
-import url from 'url';
 
 const PORT = 4000;
 
@@ -65,63 +64,6 @@ function createMockToken(userId: number, username: string, role = 'user'): strin
     })
   ).toString('base64url');
   return `${header}.${payload}.mocksignature`;
-}
-
-// ────────────────────────────────────────────
-// Simulate Lambda Context
-// ────────────────────────────────────────────
-function createLambdaContext() {
-  return {
-    awsRequestId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    functionName: 'dev-server',
-    callbackWaitsForEmptyEventLoop: false,
-  };
-}
-
-// ────────────────────────────────────────────
-// Parse request to API Gateway event format
-// ────────────────────────────────────────────
-function toApiGatewayEvent(req: http.IncomingMessage, body: unknown, mockUser?: MockUser) {
-  const parsedUrl = url.parse(req.url || '/', true);
-  const path = parsedUrl.pathname || '/';
-  const method = req.method || 'GET';
-
-  const event: Record<string, unknown> = {
-    httpMethod: method,
-    path,
-    rawPath: path,
-    requestContext: {
-      http: { method, path },
-      stage: 'dev',
-      domainName: `localhost:${PORT}`,
-    },
-    headers: req.headers as Record<string, string>,
-    queryStringParameters: Object.keys(parsedUrl.query).length > 0
-      ? (parsedUrl.query as Record<string, string>)
-      : null,
-    pathParameters: null,
-    body: body ? JSON.stringify(body) : null,
-    headers: {
-      ...req.headers,
-      'Content-Type': 'application/json',
-    },
-  };
-
-  if (mockUser) {
-    event.requestContext = {
-      ...event.requestContext,
-      authorizer: {
-        jwt: {
-          claims: {
-            sub: String(mockUser.id),
-            username: mockUser.username,
-          },
-        },
-      },
-    };
-  }
-
-  return event;
 }
 
 // ────────────────────────────────────────────
@@ -310,7 +252,7 @@ function handleOrders(req: http.IncomingMessage, body: Record<string, unknown>, 
   return null;
 }
 
-function handleAdmin(req: http.IncomingMessage, body: Record<string, unknown>, mockUser?: MockUser) {
+function handleAdmin(req: http.IncomingMessage, body: Record<string, unknown>) {
   const path = req.url || '/';
   const method = req.method || 'GET';
 
@@ -472,7 +414,7 @@ const server = http.createServer((req, res) => {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      ...((response as any).headers || {}),
+      ...(response.headers || {}),
     };
 
     res.writeHead(statusCode, headers);

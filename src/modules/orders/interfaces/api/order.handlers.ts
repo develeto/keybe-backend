@@ -1,5 +1,4 @@
 import { ResponseHelper } from '@/shared/utils/http-response.utils';
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { validateInput } from '@/shared/utils/validate-input.utils';
 import { withUser } from '@/shared/utils/with-user.middleware';
 import { CreateOrderSchema, TCreateOrderDto } from '@/modules/orders/application/dtos/order.dto';
