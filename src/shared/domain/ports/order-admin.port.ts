@@ -9,7 +9,7 @@ export interface OrderAdminPort {
       user_id: number;
       status: string;
       total: number;
-      items: string;
+      items: unknown;
       created_at: Date;
       updated_at: Date;
     }>;
@@ -19,7 +19,7 @@ export interface OrderAdminPort {
   findById(id: number): Promise<{
     id: number;
     status: string;
-    items: string;
+    items: unknown;
   } | null>;
 
   updateStatus(id: number, status: string): Promise<void>;

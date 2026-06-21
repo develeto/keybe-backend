@@ -22,7 +22,7 @@ export class CreateOrderUseCase {
         id: existing.id,
         status: existing.status,
         total: existing.total,
-        items: JSON.parse(existing.items),
+        items: existing.items as Array<{ product_id: number; quantity: number; price: number }>,
         created_at: existing.created_at,
         duplicated: true,
       };
@@ -124,7 +124,7 @@ export class ProcessOrderUseCase {
     });
 
     // Simular procesamiento (validación de stock, etc.)
-    const items = JSON.parse(order.items);
+    const items = order.items as Array<{ product_id: number; quantity: number; price: number }>;
     const processedTotal = items.reduce(
       (sum: number, item: { price: number; quantity: number }) => sum + item.price * item.quantity,
       0

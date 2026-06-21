@@ -61,7 +61,7 @@ describe('CreateOrderUseCase', () => {
       id: 1,
       status: 'PENDING' as const,
       total: 45.00,
-      items: JSON.stringify(mockItemsWithPrice),
+      items: mockItemsWithPrice,
       created_at: new Date(),
     };
     mockRepo.findByIdempotencyKey.mockResolvedValue(existingOrder);
@@ -245,7 +245,7 @@ describe('ProcessOrderUseCase', () => {
     mockRepo.findById.mockResolvedValue({
       id: 1,
       status: 'PENDING',
-      items: JSON.stringify([{ product_id: 1, quantity: 2, price: 10 }]),
+      items: [{ product_id: 1, quantity: 2, price: 10 }],
     } as any);
 
     const result = await useCase.execute(1);

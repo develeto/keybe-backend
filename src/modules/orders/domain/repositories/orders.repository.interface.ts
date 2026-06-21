@@ -6,7 +6,7 @@ export interface OrdersRepository {
     user_id: number;
     status: OrderStatus;
     total: number;
-    items: string;
+    items: unknown;
     idempotency_key: string;
     created_at: Date;
     updated_at: Date;
@@ -20,7 +20,7 @@ export interface OrdersRepository {
       id: number;
       status: OrderStatus;
       total: number;
-      items: string;
+      items: unknown;
       created_at: Date;
       updated_at: Date;
     }>;
@@ -30,7 +30,7 @@ export interface OrdersRepository {
     id: number;
     status: OrderStatus;
     total: number;
-    items: string;
+    items: unknown;
     created_at: Date;
   } | null>;
   create(data: {
@@ -51,7 +51,7 @@ export interface OrdersRepository {
       user_id: number;
       status: OrderStatus;
       total: number;
-      items: string;
+      items: unknown;
       created_at: Date;
       updated_at: Date;
     }>;
