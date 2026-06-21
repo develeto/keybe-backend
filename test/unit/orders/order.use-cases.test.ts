@@ -1,5 +1,6 @@
 import { CreateOrderUseCase, ListOrdersUseCase, GetOrderUseCase, ProcessOrderUseCase } from '@/modules/orders/application/uses-cases/order.use-cases';
 import { OrdersRepository } from '@/modules/orders/domain/repositories/orders.repository.interface';
+import { ProductsRepository } from '@/modules/products/domain/repositories/products.repository.interface';
 import { sendMessage } from '@/shared/infrastructure/aws/sqs';
 
 jest.mock('@/shared/infrastructure/aws/sqs', () => ({
@@ -9,8 +10,14 @@ jest.mock('@/shared/infrastructure/aws/sqs', () => ({
 describe('CreateOrderUseCase', () => {
   let useCase: CreateOrderUseCase;
   let mockRepo: jest.Mocked<OrdersRepository>;
+  let mockProductRepo: jest.Mocked<ProductsRepository>;
 
-  const mockItems = [
+  const mockInputItems = [
+    { product_id: 1, quantity: 2 },
+    { product_id: 2, quantity: 1 },
+  ];
+
+  const mockItemsWithPrice = [
     { product_id: 1, quantity: 2, price: 10.00 },
     { product_id: 2, quantity: 1, price: 25.00 },
   ];
@@ -25,7 +32,27 @@ describe('CreateOrderUseCase', () => {
       updateStatus: jest.fn(),
       findAll: jest.fn(),
     };
-    useCase = new CreateOrderUseCase(mockRepo);
+    mockProductRepo = {
+      create: jest.fn(),
+      findById: jest.fn(),
+      findAll: jest.fn(),
+      findActive: jest.fn(),
+      update: jest.fn(),
+      deductStock: jest.fn(),
+      restoreStock: jest.fn(),
+    };
+    mockProductRepo.findById.mockImplementation(async (id: number) => {
+      const products: Record<number, { price: number; stock: number }> = {
+        1: { price: 10.00, stock: 10 },
+        2: { price: 25.00, stock: 10 },
+      };
+      const data = products[id];
+      return data
+        ? { id, name: `Product ${id}`, description: null, price: data.price, stock: data.stock, status: 'ACTIVE', created_at: new Date(), updated_at: new Date() }
+        : null;
+    });
+    mockProductRepo.deductStock.mockResolvedValue(true);
+    useCase = new CreateOrderUseCase(mockRepo, mockProductRepo);
     jest.clearAllMocks();
   });
 
@@ -34,30 +61,34 @@ describe('CreateOrderUseCase', () => {
       id: 1,
       status: 'PENDING' as const,
       total: 45.00,
-      items: JSON.stringify(mockItems),
+      items: JSON.stringify(mockItemsWithPrice),
       created_at: new Date(),
     };
     mockRepo.findByIdempotencyKey.mockResolvedValue(existingOrder);
 
-    const result = await useCase.execute(1, mockItems, 'existing-key');
+    const result = await useCase.execute(1, mockInputItems, 'existing-key');
 
     expect(result.duplicated).toBe(true);
     expect(result.id).toBe(1);
     expect(mockRepo.create).not.toHaveBeenCalled();
+    expect(mockProductRepo.deductStock).not.toHaveBeenCalled();
   });
 
   it('should create new order and send SQS message', async () => {
     mockRepo.findByIdempotencyKey.mockResolvedValue(null);
     mockRepo.create.mockResolvedValue(1);
 
-    const result = await useCase.execute(1, mockItems, 'new-key-123');
+    const result = await useCase.execute(1, mockInputItems, 'new-key-123');
 
     expect(mockRepo.findByIdempotencyKey).toHaveBeenCalledWith('new-key-123');
+    expect(mockProductRepo.deductStock).toHaveBeenCalledTimes(2);
+    expect(mockProductRepo.deductStock).toHaveBeenNthCalledWith(1, 1, 2);
+    expect(mockProductRepo.deductStock).toHaveBeenNthCalledWith(2, 2, 1);
     expect(mockRepo.create).toHaveBeenCalledWith({
       user_id: 1,
       status: 'PENDING',
       total: 45.00,
-      items: JSON.stringify(mockItems),
+      items: JSON.stringify(mockItemsWithPrice),
       idempotency_key: 'new-key-123',
     });
     expect(sendMessage).toHaveBeenCalledWith(
@@ -67,6 +98,41 @@ describe('CreateOrderUseCase', () => {
     expect(result.duplicated).toBe(false);
     expect(result.id).toBe(1);
     expect(result.status).toBe('PENDING');
+  });
+
+  it('should throw error when product is not found', async () => {
+    mockRepo.findByIdempotencyKey.mockResolvedValue(null);
+    mockProductRepo.findById.mockResolvedValue(null);
+
+    await expect(useCase.execute(1, [{ product_id: 999, quantity: 1 }], 'key')).rejects.toThrow('Product with id 999 not found');
+  });
+
+  it('should throw error when product is not active', async () => {
+    mockRepo.findByIdempotencyKey.mockResolvedValue(null);
+    mockProductRepo.findById.mockResolvedValue({
+      id: 1, name: 'Inactive', description: null, price: 10, stock: 5, status: 'INACTIVE', created_at: new Date(), updated_at: new Date(),
+    });
+
+    await expect(useCase.execute(1, [{ product_id: 1, quantity: 1 }], 'key')).rejects.toThrow('Product 1 is not available');
+  });
+
+  it('should throw error when stock is insufficient during validation', async () => {
+    mockRepo.findByIdempotencyKey.mockResolvedValue(null);
+    mockProductRepo.findById.mockResolvedValue({
+      id: 1, name: 'Test', description: null, price: 10, stock: 1, status: 'ACTIVE', created_at: new Date(), updated_at: new Date(),
+    });
+
+    await expect(useCase.execute(1, [{ product_id: 1, quantity: 5 }], 'key')).rejects.toThrow('Insufficient stock for product 1');
+  });
+
+  it('should rollback stock deduction when a later item fails', async () => {
+    mockRepo.findByIdempotencyKey.mockResolvedValue(null);
+    mockProductRepo.deductStock
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+
+    await expect(useCase.execute(1, mockInputItems, 'key')).rejects.toThrow('Insufficient stock for product 2 at checkout');
+    expect(mockProductRepo.restoreStock).toHaveBeenCalledWith(1, 2);
   });
 });
 
