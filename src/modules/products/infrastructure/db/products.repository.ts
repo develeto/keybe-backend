@@ -68,4 +68,28 @@ export class ProductsDbRepository implements ProductsRepository {
       .where('id', '=', id)
       .execute();
   }
+
+  async deductStock(id: number, quantity: number): Promise<boolean> {
+    const result = await this.db
+      .updateTable('products')
+      .set({
+        stock: sql`stock - ${quantity}`,
+        updated_at: sql`NOW()`,
+      })
+      .where('id', '=', id)
+      .where('stock', '>=', quantity)
+      .executeTakeFirst();
+    return (result?.numUpdatedRows ?? 0n) > 0n;
+  }
+
+  async restoreStock(id: number, quantity: number): Promise<void> {
+    await this.db
+      .updateTable('products')
+      .set({
+        stock: sql`stock + ${quantity}`,
+        updated_at: sql`NOW()`,
+      })
+      .where('id', '=', id)
+      .execute();
+  }
 }

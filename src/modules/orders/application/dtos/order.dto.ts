@@ -6,7 +6,6 @@ export const CreateOrderSchema = z.object({
       z.object({
         product_id: z.number({ required_error: 'product_id is required' }),
         quantity: z.number({ required_error: 'quantity is required' }).min(1),
-        price: z.number({ required_error: 'price is required' }).min(0),
       })
     )
     .min(1, 'Order must have at least one item'),

@@ -155,7 +155,7 @@ function buildOpenApiSpec(baseUrl?: string) {
       post: {
         tags: ['Orders'],
         summary: 'Crear un pedido',
-        description: 'Crea un nuevo pedido para el usuario autenticado. Requiere header Idempotency-Key para garantizar que no se crean duplicados. Si se reintenta con la misma key, devuelve el pedido original (200 OK).',
+        description: 'Crea un nuevo pedido para el usuario autenticado. El price de cada item se calcula automáticamente desde el catálogo. Requiere header Idempotency-Key para garantizar que no se crean duplicados. Si se reintenta con la misma key, devuelve el pedido original (200 OK).',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -182,9 +182,8 @@ function buildOpenApiSpec(baseUrl?: string) {
                       properties: {
                         product_id: { type: 'number', example: 1 },
                         quantity: { type: 'number', minimum: 1, example: 2 },
-                        price: { type: 'number', minimum: 0, example: 1499.99 },
                       },
-                      required: ['product_id', 'quantity', 'price'],
+                      required: ['product_id', 'quantity'],
                     },
                   },
                 },

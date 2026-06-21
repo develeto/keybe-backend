@@ -31,4 +31,6 @@ export interface ProductsRepository {
   findAll(limit?: number, offset?: number, status?: string): Promise<{ products: Product[]; total: number }>;
   findActive(limit?: number, offset?: number): Promise<{ products: Product[]; total: number }>;
   update(id: number, data: UpdateProductData): Promise<void>;
+  deductStock(id: number, quantity: number): Promise<boolean>;
+  restoreStock(id: number, quantity: number): Promise<void>;
 }

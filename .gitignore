@@ -12,3 +12,6 @@ coverage/
 
 # Credenciales del proyecto (compartir por email/correo, no git)
 credentials.txt
+
+# Plan de arquitectura local
+keybe.plan.md
