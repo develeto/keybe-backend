@@ -478,6 +478,246 @@ function buildOpenApiSpec(baseUrl?: string) {
       },
     },
   },
+    '/admin/products': {
+      post: {
+        tags: ['Products'],
+        summary: 'Crear un producto (admin)',
+        description: 'Crea un nuevo producto en el catálogo global. Requiere autenticación.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', description: 'Nombre del producto', example: 'Laptop Gamer' },
+                  description: { type: 'string', description: 'Descripción del producto', example: 'RTX 4070, 32GB RAM', nullable: true },
+                  price: { type: 'number', description: 'Precio', example: 24999.99 },
+                  stock: { type: 'integer', description: 'Stock disponible (default: 0)', example: 10 },
+                  status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'], description: 'Estado del producto (default: ACTIVE)' },
+                },
+                required: ['name', 'price'],
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Producto creado exitosamente.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'number' },
+                        name: { type: 'string' },
+                        description: { type: 'string', nullable: true },
+                        price: { type: 'number' },
+                        stock: { type: 'integer' },
+                        status: { type: 'string' },
+                        created_at: { type: 'string', format: 'date-time' },
+                        updated_at: { type: 'string', format: 'date-time' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': { description: 'Validación fallida (nombre vacío, precio negativo, etc.)' },
+          '401': { description: 'No autorizado' },
+        },
+      },
+      get: {
+        tags: ['Products'],
+        summary: 'Listar todos los productos (admin)',
+        description: 'Lista todos los productos del catálogo, incluyendo INACTIVE. Requiere autenticación.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 20 }, description: 'Cantidad de resultados' },
+          { name: 'offset', in: 'query', schema: { type: 'number', default: 0 }, description: 'Desplazamiento para paginación' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, description: 'Filtrar por estado (opcional)' },
+        ],
+        responses: {
+          '200': {
+            description: 'Lista de productos con paginación.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        products: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'number' },
+                              name: { type: 'string' },
+                              price: { type: 'number' },
+                              stock: { type: 'integer' },
+                              status: { type: 'string' },
+                            },
+                          },
+                        },
+                        total: { type: 'number' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': { description: 'No autorizado' },
+        },
+      },
+    },
+    '/admin/products/{id}': {
+      get: {
+        tags: ['Products'],
+        summary: 'Obtener detalle de un producto (admin)',
+        description: 'Obtiene el detalle completo de un producto por su ID. Requiere autenticación.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'number' }, description: 'ID del producto', example: 1 },
+        ],
+        responses: {
+          '200': {
+            description: 'Detalle del producto.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'number' },
+                        name: { type: 'string' },
+                        description: { type: 'string', nullable: true },
+                        price: { type: 'number' },
+                        stock: { type: 'integer' },
+                        status: { type: 'string' },
+                        created_at: { type: 'string', format: 'date-time' },
+                        updated_at: { type: 'string', format: 'date-time' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': { description: 'Producto no encontrado' },
+          '401': { description: 'No autorizado' },
+        },
+      },
+      patch: {
+        tags: ['Products'],
+        summary: 'Actualizar un producto (admin)',
+        description: 'Actualiza parcial o totalmente un producto. Todos los campos son opcionales. Requiere autenticación.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'number' }, description: 'ID del producto', example: 1 },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', description: 'Nombre del producto' },
+                  description: { type: 'string', nullable: true },
+                  price: { type: 'number', description: 'Precio' },
+                  stock: { type: 'integer', description: 'Stock disponible' },
+                  status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'], description: 'Estado' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Producto actualizado exitosamente.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'number' },
+                        name: { type: 'string' },
+                        price: { type: 'number' },
+                        stock: { type: 'integer' },
+                        status: { type: 'string' },
+                        updated_at: { type: 'string', format: 'date-time' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '404': { description: 'Producto no encontrado' },
+          '400': { description: 'Validación fallida' },
+          '401': { description: 'No autorizado' },
+        },
+      },
+    },
+    '/products': {
+      get: {
+        tags: ['Products'],
+        summary: 'Listar productos activos',
+        description: 'Lista solo los productos activos (status=ACTIVE) del catálogo. No requiere admin.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 20 }, description: 'Cantidad de resultados' },
+          { name: 'offset', in: 'query', schema: { type: 'number', default: 0 }, description: 'Desplazamiento para paginación' },
+        ],
+        responses: {
+          '200': {
+            description: 'Lista de productos activos con paginación.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        products: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'number' },
+                              name: { type: 'string' },
+                              description: { type: 'string', nullable: true },
+                              price: { type: 'number' },
+                              stock: { type: 'integer' },
+                            },
+                          },
+                        },
+                        total: { type: 'number' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': { description: 'No autorizado' },
+        },
+      },
+    },
   components: {
     securitySchemes: {
       bearerAuth: {
