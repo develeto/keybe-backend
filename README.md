@@ -143,31 +143,42 @@ Los outputs incluyen:
 
 ## EC2 Bastion — SSH Setup
 
-Cada desarrollador debe crear su propio key pair para acceder al bastión:
+El bastión EC2 se desplegó con CDK usando el key pair `order-flow-bastion-key-v2`.
+
+### 1. Crear tu key pair
 
 ```bash
-# 1. Crear key pair en AWS
-aws ec2 create-key-pair --key-name "order-flow-bastion-$USER" \
-  --query "KeyMaterial" --output text --profile keybe > ~/.ssh/order-flow-bastion-$USER.pem
+aws ec2 create-key-pair --key-name "order-flow-bastion-key-v2" \
+  --query "KeyMaterial" --output text --profile keybe \
+  > ~/.ssh/order-flow-bastion-key-v2.pem
 
-chmod 400 ~/.ssh/order-flow-bastion-$USER.pem
-
-
-# 2. Asociar al bastión existente
-BASTION_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=OrderFlowStack/BastionHost" \
-  --query "Reservations[*].Instances[*].InstanceId" --output text --profile keybe --region us-east-1)
-aws ec2 modify-instance-attribute --instance-id $BASTION_ID \
-  --key-name "order-flow-bastion-$USER" --profile keybe
-
-# Nota: modificar el key pair requiere reemplazar la instancia.
-# Alternativa recomendada: actualizar cdk/lib/order-flow-stack.ts para usar
-# keyPair con el nombre de tu key, luego hacer cdk deploy.
-
-# 3. Conectar
-ssh -i ~/.ssh/order-flow-bastion-$USER.pem ec2-user@<bastion-public-ip>
+chmod 400 ~/.ssh/order-flow-bastion-key-v2.pem
 ```
 
-> **⚠️ Importante:** El CDK usa `keyPair` en el construct `Instance`. Si cambias de desarrollador, actualiza el nombre del key pair en `cdk/lib/order-flow-stack.ts` y redepliega.
+> Si el key pair ya existe, omite este paso.
+
+### 2. Obtener la IP pública del bastión
+
+```bash
+aws ec2 describe-instances --filters "Name=tag:Name,Values=OrderFlowStack/BastionHost" \
+  --query "Reservations[*].Instances[*].PublicIpAddress" \
+  --output text --profile keybe --region us-east-1
+```
+
+### 3. Conectar por SSH
+
+```bash
+ssh -i ~/.ssh/order-flow-bastion-key-v2.pem ec2-user@<ip-del-paso-2>
+```
+
+### Usar un key pair diferente
+
+Si quieres usar tu propio key pair (ej. `order-flow-bastion-juan`):
+
+1. Crea tu key pair (paso 1 con otro nombre)
+2. Cambia el nombre en `cdk/lib/order-flow-stack.ts` línea 61
+3. Redepliega: `pnpm cdk:deploy`
+4. Conecta con `ssh -i ~/.ssh/tu-key.pem ec2-user@<ip>`
 
 ## Base de Datos
 
