@@ -4,19 +4,19 @@ Backend serverless para gestión de pedidos, construido con TypeScript, AWS CDK 
 
 ## Stack Tecnológico
 
-| Componente | Tecnología |
-|------------|-----------|
-| Runtime | Node.js 20.x + TypeScript 5.x |
-| IaC | AWS CDK (TypeScript) |
-| ORM | Kysely (MySQL compatible) |
-| Autenticación | Amazon Cognito + JWT |
-| Secretos | AWS Secrets Manager |
-| API | Amazon API Gateway HTTP |
-| Procesamiento async | Amazon SQS + DLQ |
-| Tareas periódicas | Amazon EventBridge |
-| Base de datos | Aurora Serverless v2 (MySQL 8.0) |
-| Tests | Jest + ts-jest |
-| CI/CD | GitHub Actions (OIDC) |
+| Componente          | Tecnología                       |
+| ------------------- | -------------------------------- |
+| Runtime             | Node.js 20.x + TypeScript 5.x    |
+| IaC                 | AWS CDK (TypeScript)             |
+| ORM                 | Kysely (MySQL compatible)        |
+| Autenticación       | Amazon Cognito + JWT             |
+| Secretos            | AWS Secrets Manager              |
+| API                 | Amazon API Gateway HTTP          |
+| Procesamiento async | Amazon SQS + DLQ                 |
+| Tareas periódicas   | Amazon EventBridge               |
+| Base de datos       | Aurora Serverless v2 (MySQL 8.0) |
+| Tests               | Jest + ts-jest                   |
+| CI/CD               | GitHub Actions (OIDC)            |
 
 ## Descripción de la aplicación
 
@@ -71,6 +71,7 @@ Cada 5 minutos, EventBridge dispara `ReportMetricsFunction` que consulta la BD y
 Cuando un pedido cambia de estado (por admin o por procesamiento asíncrono), se publica un mensaje JSON en un tópico SNS. Cualquier servicio externo puede suscribirse (email, SMS, Lambda, SQS, HTTP).
 
 **Formato del mensaje SNS**:
+
 ```json
 {
   "event": "order.status.changed",
@@ -133,6 +134,7 @@ aws cloudformation describe-stacks --stack-name OrderFlowStack \
 ```
 
 Los outputs incluyen:
+
 - `ApiUrl` — URL base de API Gateway
 - `SwaggerUrl` — URL de Swagger UI
 - `UserPoolId` / `UserPoolClientId` — IDs de Cognito
@@ -147,7 +149,9 @@ Cada desarrollador debe crear su propio key pair para acceder al bastión:
 # 1. Crear key pair en AWS
 aws ec2 create-key-pair --key-name "order-flow-bastion-$USER" \
   --query "KeyMaterial" --output text --profile keybe > ~/.ssh/order-flow-bastion-$USER.pem
+
 chmod 400 ~/.ssh/order-flow-bastion-$USER.pem
+
 
 # 2. Asociar al bastión existente
 BASTION_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=OrderFlowStack/BastionHost" \
@@ -183,6 +187,7 @@ mysql -h <aurora-endpoint> -u admin -p orderflow < database/seed.sql
 ```
 
 O desde tu máquina local si tienes acceso a la VPC (VPN/tunnel):
+
 ```bash
 mysql -h <aurora-endpoint> -u admin -p -P 3306 orderflow < database/schema.sql
 mysql -h <aurora-endpoint> -u admin -p -P 3306 orderflow < database/seed.sql
@@ -295,16 +300,19 @@ curl <api-url>/docs/openapi.json
 ## Verificar Componentes
 
 1. **EC2 Bastion**: SSH a la instancia bastion
+
    ```bash
    ssh -i ~/.ssh/order-flow-bastion-<username>.pem ec2-user@<bastion-public-ip>
    ```
 
 2. **SQS DLQ**: Ver mensajes fallidos
+
    ```bash
    aws sqs receive-message --queue-url <dlq-url> --profile keybe
    ```
 
 3. **CloudWatch Logs**: Ver logs de Lambda
+
    ```bash
    aws logs describe-log-groups --log-group-name-prefix /aws/lambda/OrderFlowStack- --profile keybe
    ```

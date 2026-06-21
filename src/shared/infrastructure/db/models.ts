@@ -33,7 +33,7 @@ export interface OrderStatusHistoryModel {
 export interface ProductModel {
   id: Generated<number>;
   name: string;
-  description: string;
+  description: string | null;
   price: number;
   stock: number;
   status: 'ACTIVE' | 'INACTIVE';

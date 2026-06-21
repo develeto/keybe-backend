@@ -1,6 +1,7 @@
 import { ResponseHelper } from '@/shared/utils/http-response.utils';
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { validateInput } from '@/shared/utils/validate-input.utils';
+import { withUser } from '@/shared/utils/with-user.middleware';
 import { CreateOrderSchema, TCreateOrderDto } from '@/modules/orders/application/dtos/order.dto';
 import {
   createOrderUseCase,
@@ -9,17 +10,9 @@ import {
   userLookupAdapter,
 } from '@/modules/orders/config/dependencies';
 
-async function resolveUserId(event: APIGatewayProxyEvent): Promise<number> {
-  const cognitoSub = event.requestContext?.authorizer?.jwt?.claims?.sub as string | undefined;
-  if (!cognitoSub) return 0;
-  const userId = await userLookupAdapter.findByCognitoSub(cognitoSub);
-  return userId ?? 0;
-}
+const findByCognitoSub = (sub: string) => userLookupAdapter.findByCognitoSub(sub);
 
-export const createOrder = async (
-  event: APIGatewayProxyEvent,
-  context: Context
-): Promise<APIGatewayProxyResult> => {
+export const createOrder = withUser(async (event, context, userId) => {
   const requestId = context.awsRequestId;
 
   try {
@@ -33,9 +26,6 @@ export const createOrder = async (
     }
 
     const payload = validateInput<TCreateOrderDto>(CreateOrderSchema, JSON.parse(event.body));
-    const userId = await resolveUserId(event);
-    if (!userId) return ResponseHelper.unauthorized('User not found', requestId);
-
     const result = await createOrderUseCase.execute(userId, payload.items, idempotencyKey);
 
     if (result.duplicated) {
@@ -46,18 +36,12 @@ export const createOrder = async (
   } catch (error) {
     return ResponseHelper.handleError(error as Error, requestId);
   }
-};
+}, findByCognitoSub);
 
-export const listOrders = async (
-  event: APIGatewayProxyEvent,
-  context: Context
-): Promise<APIGatewayProxyResult> => {
+export const listOrders = withUser(async (event, context, userId) => {
   const requestId = context.awsRequestId;
 
   try {
-    const userId = await resolveUserId(event);
-    if (!userId) return ResponseHelper.unauthorized('User not found', requestId);
-
     const limit = parseInt(event.queryStringParameters?.limit || '20', 10);
     const offset = parseInt(event.queryStringParameters?.offset || '0', 10);
 
@@ -66,12 +50,9 @@ export const listOrders = async (
   } catch (error) {
     return ResponseHelper.handleError(error as Error, requestId);
   }
-};
+}, findByCognitoSub);
 
-export const getOrder = async (
-  event: APIGatewayProxyEvent,
-  context: Context
-): Promise<APIGatewayProxyResult> => {
+export const getOrder = withUser(async (event, context, userId) => {
   const requestId = context.awsRequestId;
 
   try {
@@ -79,9 +60,6 @@ export const getOrder = async (
     if (!orderId) {
       return ResponseHelper.badRequest('Order ID is required', requestId);
     }
-
-    const userId = await resolveUserId(event);
-    if (!userId) return ResponseHelper.unauthorized('User not found', requestId);
 
     const order = await getOrderUseCase.execute(orderId, userId);
 
@@ -93,4 +71,4 @@ export const getOrder = async (
   } catch (error) {
     return ResponseHelper.handleError(error as Error, requestId);
   }
-};
+}, findByCognitoSub);

@@ -58,7 +58,8 @@ export async function createUser(
     MessageAction: 'SUPPRESS',
   });
   const response = await client.send(command);
-  return response.User?.Username;
+  const sub = response.User?.Attributes?.find(attr => attr.Name === 'sub')?.Value;
+  return sub ?? response.User?.Username;
 }
 
 export async function getUserSub(username: string): Promise<string | undefined> {
@@ -68,7 +69,7 @@ export async function getUserSub(username: string): Promise<string | undefined> 
       Username: username,
     });
     const response = await client.send(command);
-    return response.Username;
+    return response.UserAttributes?.find(attr => attr.Name === 'sub')?.Value;
   } catch {
     return undefined;
   }

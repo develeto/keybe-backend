@@ -240,6 +240,12 @@ export class OrderFlowStack extends cdk.Stack {
     const adminListOrdersFn = createLambda('AdminListOrdersFunction', 'adminListOrders', 'modules/admin/interfaces/api/admin.handlers.ts');
     const adminUpdateStatusFn = createLambda('AdminUpdateOrderStatusFunction', 'adminUpdateOrderStatus', 'modules/admin/interfaces/api/admin.handlers.ts');
 
+    const createProductFn = createLambda('CreateProductFunction', 'createProduct', 'modules/products/interfaces/api/product.handlers.ts');
+    const adminListProductsFn = createLambda('AdminListProductsFunction', 'adminListProducts', 'modules/products/interfaces/api/product.handlers.ts');
+    const adminGetProductFn = createLambda('AdminGetProductFunction', 'adminGetProduct', 'modules/products/interfaces/api/product.handlers.ts');
+    const adminUpdateProductFn = createLambda('AdminUpdateProductFunction', 'adminUpdateProduct', 'modules/products/interfaces/api/product.handlers.ts');
+    const listProductsFn = createLambda('ListProductsFunction', 'listProducts', 'modules/products/interfaces/api/product.handlers.ts');
+
     const processOrderFn = createLambda('ProcessOrderFunction', 'processOrderHandler', 'modules/orders/infrastructure/sqs/process-order.handler.ts', {
       timeout: cdk.Duration.seconds(60),
     });
@@ -293,6 +299,11 @@ export class OrderFlowStack extends cdk.Stack {
     addRoute('/orders/{id}', [apigw.HttpMethod.GET], getOrderFn, true);
     addRoute('/admin/orders', [apigw.HttpMethod.GET], adminListOrdersFn, true);
     addRoute('/admin/orders/{id}/status', [apigw.HttpMethod.PATCH], adminUpdateStatusFn, true);
+    addRoute('/admin/products', [apigw.HttpMethod.POST], createProductFn, true);
+    addRoute('/admin/products', [apigw.HttpMethod.GET], adminListProductsFn, true);
+    addRoute('/admin/products/{id}', [apigw.HttpMethod.GET], adminGetProductFn, true);
+    addRoute('/admin/products/{id}', [apigw.HttpMethod.PATCH], adminUpdateProductFn, true);
+    addRoute('/products', [apigw.HttpMethod.GET], listProductsFn, true);
     addRoute('/docs/openapi.json', [apigw.HttpMethod.GET], openapiFn);
     addRoute('/docs/ui', [apigw.HttpMethod.GET], swaggerFn);
 
@@ -304,6 +315,7 @@ export class OrderFlowStack extends cdk.Stack {
     const allFunctions = [
       loginFn, registerFn, createOrderFn, listOrdersFn, getOrderFn,
       adminListOrdersFn, adminUpdateStatusFn, processOrderFn, reportMetricsFn,
+      createProductFn, adminListProductsFn, adminGetProductFn, adminUpdateProductFn, listProductsFn,
       openapiFn, swaggerFn,
     ];
 
