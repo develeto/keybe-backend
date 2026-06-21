@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [master]
+    branches: [never]
     paths:
       - 'src/**'
       - 'cdk/**'
@@ -17,10 +17,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 11
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm tsc --noEmit
@@ -41,12 +41,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 11
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
